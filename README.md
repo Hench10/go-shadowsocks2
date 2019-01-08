@@ -30,27 +30,48 @@ go get -u -v github.com/shadowsocks/go-shadowsocks2
 
 ### Server
 
-Start a server listening on port 8488 using `AEAD_CHACHA20_POLY1305` AEAD cipher with password `your-password`.
+* Way 1
+
+Start a server listening on port 8488 using `AES-192-CFB` AES cipher with password `your-password`.
 
 ```sh
-shadowsocks2 -s 'ss://AEAD_CHACHA20_POLY1305:your-password@:8488' -d
+shadowsocks2 -s 'ss://AES-192-CFB:your-password@:8488' -d
 ```
 
+* Way 2
 
-### Client
-
-Start a client connecting to the above server. The client listens on port 1080 for incoming SOCKS5 
-connections, and tunnels both UDP and TCP on port 8053 and port 8054 to 8.8.8.8:53 and 8.8.4.4:53 
-respectively. 
+use config file. Manager mode must use config file
 
 ```sh
-shadowsocks2 -c 'ss://AEAD_CHACHA20_POLY1305:your-password@[server_address]:8488' \
-    -d -socks :1080 -u -udptun :8053=8.8.8.8:53,:8054=8.8.4.4:53 \
-                             -tcptun :8053=8.8.8.8:53,:8054=8.8.4.4:53
+shadowsocks2 -c config.json
 ```
 
-Replace `[server_address]` with the server's public address.
+config file example:
 
+```json
+{
+    "debug":true,
+    "server_port":1066,
+    "password":"password",
+    "method": "aes-128-cfb",
+    "timeout":600,
+    "manager_addr":"192.168.1.10:2066",
+    "manager_pwd":"password",
+    "manager_method":"aes-128-cfb"
+}
+```
+
+* Way 3
+
+```sh
+shadowsocks2 -p 1066 -pwd "password" -m "aes-128-cfb" -t 600 -d
+```
+
+Or by default value, only set password
+
+```sh
+shadowsocks2 -pwd "password" -d
+```
 
 ## Advanced Usage
 

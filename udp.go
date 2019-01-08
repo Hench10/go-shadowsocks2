@@ -42,7 +42,7 @@ func udpLocal(laddr, server, target string, shadow func(net.PacketConn) net.Pack
 	}
 	defer c.Close()
 
-	nm := newNATmap(config.UDPTimeout)
+	nm := newNATmap(config.Timeout)
 	buf := make([]byte, udpBufSize)
 	copy(buf, tgt)
 
@@ -89,7 +89,7 @@ func udpSocksLocal(laddr, server string, shadow func(net.PacketConn) net.PacketC
 	}
 	defer c.Close()
 
-	nm := newNATmap(config.UDPTimeout)
+	nm := newNATmap(config.Timeout)
 	buf := make([]byte, udpBufSize)
 
 	for {
@@ -129,7 +129,7 @@ func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn) {
 	defer c.Close()
 	c = shadow(c)
 
-	nm := newNATmap(config.UDPTimeout)
+	nm := newNATmap(config.Timeout)
 	buf := make([]byte, udpBufSize)
 
 	logf("listening UDP on %s", addr)
@@ -180,10 +180,10 @@ type natmap struct {
 	timeout time.Duration
 }
 
-func newNATmap(timeout time.Duration) *natmap {
+func newNATmap(timeout int) *natmap {
 	m := &natmap{}
 	m.m = make(map[string]net.PacketConn)
-	m.timeout = timeout
+	m.timeout = time.Duration(timeout) * time.Second
 	return m
 }
 

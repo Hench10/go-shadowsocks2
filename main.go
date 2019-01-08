@@ -12,15 +12,26 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
-
 	"./core"
+	"io/ioutil"
+	"encoding/json"
 	"net"
 )
 
-var config struct {
-	Debug      bool
-	UDPTimeout time.Duration
+var config Config
+
+type Config struct {
+	Debug    bool   `json:"debug"`
+	Port     int    `json:"server_port"`
+	Password string `json:"password"`
+	Method   string `json:"method"`
+	Timeout  int    `json:"timeout"`
+	// Core     int    `json:"core"`
+
+	// For Reporter
+	ManagerAddr   string `json:"manager_addr"`
+	ManagerPwd    string `json:"manager_pwd"`
+	ManagerMethod string `json:"manager_method"`
 }
 
 var logger = log.New(os.Stderr, "", log.Lshortfile|log.LstdFlags)
@@ -33,19 +44,27 @@ func logf(f string, v ...interface{}) {
 
 func main() {
 
-	var flags struct {
-		Server   string
-		Cipher   string
-		Password string
-		Keygen   int
+	config = Config{
+		Debug:   true,
+		Port:    1088,
+		Method:  "AES-256-CFB",
+		Timeout: 600,
 	}
 
-	flag.BoolVar(&config.Debug, "d", false, "debug mode")
-	flag.StringVar(&flags.Cipher, "cipher", "AEAD_CHACHA20_POLY1305", "available ciphers: "+strings.Join(core.ListCipher(), " "))
+	var flags struct {
+		ConfigFile string
+		Server     string
+		Keygen     int
+	}
+
 	flag.IntVar(&flags.Keygen, "keygen", 0, "generate a base64url-encoded random key of given length in byte")
-	flag.StringVar(&flags.Password, "password", "", "password")
-	flag.StringVar(&flags.Server, "s", "", "server listen address or url")
-	flag.DurationVar(&config.UDPTimeout, "udptimeout", 5*time.Minute, "UDP tunnel timeout")
+	flag.StringVar(&flags.Server, "s", "", "server url like ss://AES-192-CFB:your-password@:8488")
+	flag.StringVar(&flags.ConfigFile, "c", "", "config file path")
+	flag.BoolVar(&config.Debug, "d", false, "debug mode")
+	flag.IntVar(&config.Port, "p", 1066, "server listen port")
+	flag.StringVar(&config.Password, "pwd", "", "password")
+	flag.StringVar(&config.Method, "m", "AES-192-CFB", "available ciphers: "+strings.Join(core.ListCipher(), " "))
+	flag.IntVar(&config.Timeout, "t", 300, "udp timeout")
 	flag.Parse()
 
 	// 密码生成器
@@ -56,25 +75,37 @@ func main() {
 		return
 	}
 
-	if flags.Server == "" {
-		flag.Usage()
-		return
-	}
+	fmt.Println(config)
+	os.Exit(1)
 
 	var key []byte
-	addr := flags.Server
-	cipher := flags.Cipher
-	password := flags.Password
 	var err error
+	var addr, cipher, password string
 
-	if strings.HasPrefix(addr, "ss://") {
-		addr, cipher, password, err = parseURL(addr)
-		if err != nil {
-			log.Fatal(err)
+	if flags.Server != "" {
+		if strings.HasPrefix(addr, "ss://") {
+			addr, cipher, password, err = parseURL(addr)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 	} else {
-		_,err := net.ResolveTCPAddr("tcp",addr)
+		if flags.ConfigFile != ""{
+			if err = ParseConfig(flags.ConfigFile,&config);err != nil{
+				log.Fatal(err)
+			}
+		}
+		addr = ":" + string(config.Port)
+		cipher = config.Method
+		password = config.Password
+	}
+
+	if _, err := net.ResolveTCPAddr("tcp", addr); err != nil {
 		log.Fatal(err)
+	}
+
+	if password == "" {
+		log.Fatal("password is empty")
 	}
 
 	ciph, err := core.PickCipher(cipher, key, password)
@@ -84,6 +115,8 @@ func main() {
 
 	go udpRemote(addr, ciph.PacketConn)
 	go tcpRemote(addr, ciph.StreamConn)
+
+
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -100,6 +133,24 @@ func parseURL(s string) (addr, cipher, password string, err error) {
 	if u.User != nil {
 		cipher = u.User.Username()
 		password, _ = u.User.Password()
+	}
+	return
+}
+
+func ParseConfig(path string, config interface{}) (err error) {
+	file, err := os.Open(path) // For read access.
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return
+	}
+
+	if err = json.Unmarshal(data, config); err != nil {
+		return
 	}
 	return
 }
