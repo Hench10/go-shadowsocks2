@@ -15,10 +15,11 @@ import (
 	"time"
 
 	"./core"
+	"net"
 )
 
 var config struct {
-	Debug    bool
+	Debug      bool
 	UDPTimeout time.Duration
 }
 
@@ -33,10 +34,10 @@ func logf(f string, v ...interface{}) {
 func main() {
 
 	var flags struct {
-		Server    string
-		Cipher    string
-		Password  string
-		Keygen    int
+		Server   string
+		Cipher   string
+		Password string
+		Keygen   int
 	}
 
 	flag.BoolVar(&config.Debug, "d", false, "debug mode")
@@ -50,7 +51,7 @@ func main() {
 	// 密码生成器
 	if flags.Keygen > 0 {
 		key := make([]byte, flags.Keygen)
-		io.ReadFull(rand.Reader, key)	//rand.Reader 密码生成器
+		io.ReadFull(rand.Reader, key) // rand.Reader 密码生成器
 		fmt.Println(base64.URLEncoding.EncodeToString(key))
 		return
 	}
@@ -71,6 +72,9 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		_,err := net.ResolveTCPAddr("tcp",addr)
+		log.Fatal(err)
 	}
 
 	ciph, err := core.PickCipher(cipher, key, password)
