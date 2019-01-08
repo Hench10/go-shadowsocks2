@@ -14,19 +14,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shadowsocks/go-shadowsocks2/core"
-	"github.com/shadowsocks/go-shadowsocks2/socks"
+	"./core"
+	"./socks"
 )
 
 var config struct {
-	Verbose    bool
+	Debug    bool
 	UDPTimeout time.Duration
 }
 
 var logger = log.New(os.Stderr, "", log.Lshortfile|log.LstdFlags)
 
 func logf(f string, v ...interface{}) {
-	if config.Verbose {
+	if config.Debug {
 		logger.Output(2, fmt.Sprintf(f, v...))
 	}
 }
@@ -48,7 +48,7 @@ func main() {
 		UDPSocks  bool
 	}
 
-	flag.BoolVar(&config.Verbose, "verbose", false, "verbose mode")
+	flag.BoolVar(&config.Debug, "d", false, "debug mode")
 	flag.StringVar(&flags.Cipher, "cipher", "AEAD_CHACHA20_POLY1305", "available ciphers: "+strings.Join(core.ListCipher(), " "))
 	flag.StringVar(&flags.Key, "key", "", "base64url-encoded key (derive from password if empty)")
 	flag.IntVar(&flags.Keygen, "keygen", 0, "generate a base64url-encoded random key of given length in byte")
@@ -64,9 +64,10 @@ func main() {
 	flag.DurationVar(&config.UDPTimeout, "udptimeout", 5*time.Minute, "UDP tunnel timeout")
 	flag.Parse()
 
+	// 密码生成器
 	if flags.Keygen > 0 {
 		key := make([]byte, flags.Keygen)
-		io.ReadFull(rand.Reader, key)
+		io.ReadFull(rand.Reader, key)	//rand.Reader 密码生成器
 		fmt.Println(base64.URLEncoding.EncodeToString(key))
 		return
 	}

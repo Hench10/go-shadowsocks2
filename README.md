@@ -33,7 +33,7 @@ go get -u -v github.com/shadowsocks/go-shadowsocks2
 Start a server listening on port 8488 using `AEAD_CHACHA20_POLY1305` AEAD cipher with password `your-password`.
 
 ```sh
-shadowsocks2 -s 'ss://AEAD_CHACHA20_POLY1305:your-password@:8488' -verbose
+shadowsocks2 -s 'ss://AEAD_CHACHA20_POLY1305:your-password@:8488' -d
 ```
 
 
@@ -45,7 +45,7 @@ respectively.
 
 ```sh
 shadowsocks2 -c 'ss://AEAD_CHACHA20_POLY1305:your-password@[server_address]:8488' \
-    -verbose -socks :1080 -u -udptun :8053=8.8.8.8:53,:8054=8.8.4.4:53 \
+    -d -socks :1080 -u -udptun :8053=8.8.8.8:53,:8054=8.8.4.4:53 \
                              -tcptun :8053=8.8.8.8:53,:8054=8.8.4.4:53
 ```
 

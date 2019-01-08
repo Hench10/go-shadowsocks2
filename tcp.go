@@ -5,7 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/shadowsocks/go-shadowsocks2/socks"
+	"./socks"
 )
 
 // Create a SOCKS server listening on addr and proxy to server.
@@ -120,6 +120,7 @@ func tcpRemote(addr string, shadow func(net.Conn) net.Conn) {
 			rc, err := net.Dial("tcp", tgt.String())
 			if err != nil {
 				logf("failed to connect to target: %v", err)
+				logf("failed to connect to target: %v", tgt.String())
 				return
 			}
 			defer rc.Close()
