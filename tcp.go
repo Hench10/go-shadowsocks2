@@ -164,3 +164,12 @@ func relay(left, right net.Conn) (int64, int64, error) {
 	}
 	return n, rs.N, err
 }
+
+func tcpAddPort(port int, password string, method string) (err error) {
+	tcpDelPort(port)
+
+}
+
+func tcpDelPort(port int) bool {
+	return true
+}

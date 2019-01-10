@@ -16,9 +16,8 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"net"
+	"sync"
 )
-
-var config Config
 
 type Config struct {
 	Debug    bool   `json:"debug"`
@@ -29,10 +28,32 @@ type Config struct {
 	// Core     int    `json:"core"`
 
 	// For Reporter
+	ManagerMode   bool
 	ManagerAddr   string `json:"manager_addr"`
 	ManagerPwd    string `json:"manager_pwd"`
 	ManagerMethod string `json:"manager_method"`
 }
+
+type PortInfo struct {
+	sync.RWMutex
+	Index    int64
+	Port     int
+	Method   string
+	Password string
+	Cipher   core.Cipher
+	InTraffic  int64
+	OutTraffic  int64
+}
+
+func (p *PortInfo) AddTraffic() {
+	p.Lock()
+	defer p.Unlock()
+
+	println(p.Port)
+}
+
+var config Config
+var PortList map[int]*PortInfo
 
 var logger = log.New(os.Stderr, "", log.Lshortfile|log.LstdFlags)
 
@@ -54,6 +75,7 @@ func main() {
 	var flags struct {
 		ConfigFile string
 		Server     string
+		Manager    string
 		Keygen     int
 	}
 
@@ -65,6 +87,7 @@ func main() {
 	flag.StringVar(&config.Password, "pwd", "", "password")
 	flag.StringVar(&config.Method, "m", "AES-192-CFB", "available ciphers: "+strings.Join(core.ListCipher(), " "))
 	flag.IntVar(&config.Timeout, "t", 300, "udp timeout")
+	flag.StringVar(&flags.Manager, "ss", "", "server url like ss://AES-192-CFB:your-password@192.168.1.10:8488")
 	flag.Parse()
 
 	// 密码生成器
@@ -75,28 +98,33 @@ func main() {
 		return
 	}
 
-	fmt.Println(config)
-	os.Exit(1)
-
 	var key []byte
 	var err error
-	var addr, cipher, password string
+	var addr, method, password string
 
-	if flags.Server != "" {
+	if flags.Manager != "" {
 		if strings.HasPrefix(addr, "ss://") {
-			addr, cipher, password, err = parseURL(addr)
+			addr, method, password, err = parseURL(addr)
+			if err != nil {
+				log.Fatal(err)
+			}
+			config.ManagerMode = true
+		}
+	} else if flags.Server != "" {
+		if strings.HasPrefix(addr, "ss://") {
+			addr, method, password, err = parseURL(addr)
 			if err != nil {
 				log.Fatal(err)
 			}
 		}
 	} else {
-		if flags.ConfigFile != ""{
-			if err = ParseConfig(flags.ConfigFile,&config);err != nil{
+		if flags.ConfigFile != "" {
+			if err = ParseConfig(flags.ConfigFile, &config); err != nil {
 				log.Fatal(err)
 			}
 		}
 		addr = ":" + string(config.Port)
-		cipher = config.Method
+		method = config.Method
 		password = config.Password
 	}
 
@@ -108,22 +136,22 @@ func main() {
 		log.Fatal("password is empty")
 	}
 
-	ciph, err := core.PickCipher(cipher, key, password)
-	if err != nil {
-		log.Fatal(err)
+	if flags.Manager == "" {
+		cipher, err := core.PickCipher(method, key, password)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		go udpRemote(addr, cipher.PacketConn)
+		go tcpRemote(addr, cipher.StreamConn)
 	}
-
-	go udpRemote(addr, ciph.PacketConn)
-	go tcpRemote(addr, ciph.StreamConn)
-
-
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 }
 
-func parseURL(s string) (addr, cipher, password string, err error) {
+func parseURL(s string) (addr, method, password string, err error) {
 	u, err := url.Parse(s)
 	if err != nil {
 		return
@@ -131,7 +159,7 @@ func parseURL(s string) (addr, cipher, password string, err error) {
 
 	addr = u.Host
 	if u.User != nil {
-		cipher = u.User.Username()
+		method = u.User.Username()
 		password, _ = u.User.Password()
 	}
 	return
