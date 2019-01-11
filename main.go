@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"net"
 	"sync"
+	"errors"
 )
 
 type Config struct {
@@ -84,7 +85,7 @@ func (p *PortInfo) AddUDP(conn net.PacketConn) {
 }
 
 func (p *PortInfo) Println() {
-	fmt.Println("Index:",p.Index,"Port:",p.Port,"In:",p.InTraffic,"Out",p.OutTraffic)
+	fmt.Println("Index:", p.Index, "Port:", p.Port, "In:", p.InTraffic, "Out", p.OutTraffic)
 }
 
 var config Config
@@ -99,14 +100,6 @@ func logf(f string, v ...interface{}) {
 }
 
 func main() {
-
-	config = Config{
-		Debug:   true,
-		Port:    1088,
-		Method:  "AES-256-CFB",
-		Timeout: 600,
-	}
-
 	var flags struct {
 		ConfigFile string
 		Server     string
@@ -138,22 +131,12 @@ func main() {
 	var addr, method, password string
 
 	if flags.Manager != "" {
-		if strings.HasPrefix(flags.Manager, "ss://") {
-			addr, method, password, err = parseURL(flags.Manager)
-			if err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			log.Fatal("without Prefix ss://")
+		if addr, method, password, err = parseURL(flags.Manager); err != nil {
+			log.Fatal(err)
 		}
 	} else if flags.Server != "" {
-		if strings.HasPrefix(flags.Server, "ss://") {
-			addr, method, password, err = parseURL(flags.Server)
-			if err != nil {
-				log.Fatal(err)
-			}
-		} else {
-			log.Fatal("without Prefix ss://")
+		if addr, method, password, err = parseURL(flags.Server); err != nil {
+			log.Fatal(err)
 		}
 	} else {
 		if flags.ConfigFile != "" {
@@ -201,6 +184,10 @@ func main() {
 }
 
 func parseURL(s string) (addr, method, password string, err error) {
+	if !strings.HasPrefix(s, "ss://") {
+		return addr, method, password, errors.New("Addr without 'ss://' prefix ")
+	}
+
 	u, err := url.Parse(s)
 	if err != nil {
 		return
