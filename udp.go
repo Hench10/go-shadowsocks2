@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"time"
-
 	"sync"
 
 	"./socks"
@@ -20,114 +18,17 @@ const (
 
 const udpBufSize = 64 * 1024
 
-// Listen on laddr for UDP packets, encrypt and send to server to reach target.
-func udpLocal(laddr, server, target string, shadow func(net.PacketConn) net.PacketConn) {
-	srvAddr, err := net.ResolveUDPAddr("udp", server)
-	if err != nil {
-		logf("UDP server address error: %v", err)
-		return
-	}
-
-	tgt := socks.ParseAddr(target)
-	if tgt == nil {
-		err = fmt.Errorf("invalid target address: %q", target)
-		logf("UDP target address error: %v", err)
-		return
-	}
-
-	c, err := net.ListenPacket("udp", laddr)
-	if err != nil {
-		logf("UDP local listen error: %v", err)
-		return
-	}
-	defer c.Close()
-
-	nm := newNATmap(config.Timeout)
-	buf := make([]byte, udpBufSize)
-	copy(buf, tgt)
-
-	logf("UDP tunnel %s <-> %s <-> %s", laddr, server, target)
-	for {
-		n, raddr, err := c.ReadFrom(buf[len(tgt):])
-		if err != nil {
-			logf("UDP local read error: %v", err)
-			continue
-		}
-
-		pc := nm.Get(raddr.String())
-		if pc == nil {
-			pc, err = net.ListenPacket("udp", "")
-			if err != nil {
-				logf("UDP local listen error: %v", err)
-				continue
-			}
-
-			pc = shadow(pc)
-			nm.Add(raddr, c, pc, relayClient)
-		}
-
-		_, err = pc.WriteTo(buf[:len(tgt)+n], srvAddr)
-		if err != nil {
-			logf("UDP local write error: %v", err)
-			continue
-		}
-	}
-}
-
-// Listen on laddr for Socks5 UDP packets, encrypt and send to server to reach target.
-func udpSocksLocal(laddr, server string, shadow func(net.PacketConn) net.PacketConn) {
-	srvAddr, err := net.ResolveUDPAddr("udp", server)
-	if err != nil {
-		logf("UDP server address error: %v", err)
-		return
-	}
-
-	c, err := net.ListenPacket("udp", laddr)
-	if err != nil {
-		logf("UDP local listen error: %v", err)
-		return
-	}
-	defer c.Close()
-
-	nm := newNATmap(config.Timeout)
-	buf := make([]byte, udpBufSize)
-
-	for {
-		n, raddr, err := c.ReadFrom(buf)
-		if err != nil {
-			logf("UDP local read error: %v", err)
-			continue
-		}
-
-		pc := nm.Get(raddr.String())
-		if pc == nil {
-			pc, err = net.ListenPacket("udp", "")
-			if err != nil {
-				logf("UDP local listen error: %v", err)
-				continue
-			}
-			logf("UDP socks tunnel %s <-> %s <-> %s", laddr, server, socks.Addr(buf[3:]))
-			pc = shadow(pc)
-			nm.Add(raddr, c, pc, socksClient)
-		}
-
-		_, err = pc.WriteTo(buf[3:n], srvAddr)
-		if err != nil {
-			logf("UDP local write error: %v", err)
-			continue
-		}
-	}
-}
-
 // Listen on addr for encrypted packets and basically do UDP NAT.
-func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn) {
+func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn, porter *PortInfo) {
 	c, err := net.ListenPacket("udp", addr)
 	if err != nil {
 		logf("UDP remote listen error: %v", err)
 		return
 	}
 	defer c.Close()
+
 	c = shadow(c)
+	porter.AddUDP(c)
 
 	nm := newNATmap(config.Timeout)
 	buf := make([]byte, udpBufSize)
@@ -153,6 +54,7 @@ func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn) {
 		}
 
 		payload := buf[len(tgtAddr):n]
+		porter.AddTraffic(TrafficIn, int64(n))
 
 		pc := nm.Get(raddr.String())
 		if pc == nil {
@@ -162,7 +64,7 @@ func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn) {
 				continue
 			}
 
-			nm.Add(raddr, c, pc, remoteServer)
+			nm.Add(raddr, porter, pc, remoteServer)
 		}
 
 		_, err = pc.WriteTo(payload, tgtUDPAddr) // accept only UDPAddr despite the signature
@@ -212,11 +114,11 @@ func (m *natmap) Del(key string) net.PacketConn {
 	return nil
 }
 
-func (m *natmap) Add(peer net.Addr, dst, src net.PacketConn, role mode) {
+func (m *natmap) Add(peer net.Addr, porter *PortInfo, src net.PacketConn, role mode) {
 	m.Set(peer.String(), src)
 
 	go func() {
-		timedCopy(dst, peer, src, m.timeout, role)
+		timedCopy(porter, peer, src, m.timeout, role)
 		if pc := m.Del(peer.String()); pc != nil {
 			pc.Close()
 		}
@@ -224,8 +126,9 @@ func (m *natmap) Add(peer net.Addr, dst, src net.PacketConn, role mode) {
 }
 
 // copy from src to dst at target with read timeout
-func timedCopy(dst net.PacketConn, target net.Addr, src net.PacketConn, timeout time.Duration, role mode) error {
+func timedCopy(porter *PortInfo, target net.Addr, src net.PacketConn, timeout time.Duration, role mode) error {
 	buf := make([]byte, udpBufSize)
+	dst := porter.UDPConn
 
 	for {
 		src.SetReadDeadline(time.Now().Add(timeout))
@@ -233,6 +136,7 @@ func timedCopy(dst net.PacketConn, target net.Addr, src net.PacketConn, timeout 
 		if err != nil {
 			return err
 		}
+		porter.AddTraffic(TrafficOut, int64(n))
 
 		switch role {
 		case remoteServer: // server -> client: add original packet source

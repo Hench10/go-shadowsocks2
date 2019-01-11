@@ -28,32 +28,67 @@ type Config struct {
 	// Core     int    `json:"core"`
 
 	// For Reporter
-	ManagerMode   bool
 	ManagerAddr   string `json:"manager_addr"`
 	ManagerPwd    string `json:"manager_pwd"`
 	ManagerMethod string `json:"manager_method"`
 }
 
+const (
+	TrafficIn  = iota
+	TrafficOut
+)
+
 type PortInfo struct {
 	sync.RWMutex
-	Index    int64
-	Port     int
-	Method   string
-	Password string
-	Cipher   core.Cipher
+	Index      int64
+	Port       int
+	Method     string
+	Password   string
 	InTraffic  int64
-	OutTraffic  int64
+	OutTraffic int64
+	TCPConn    net.Listener
+	UDPConn    net.PacketConn
 }
 
-func (p *PortInfo) AddTraffic() {
+func (p *PortInfo) AddTraffic(InOut int, t int64) {
 	p.Lock()
 	defer p.Unlock()
 
-	println(p.Port)
+	p.Println()
+	switch InOut {
+	case TrafficIn:
+		p.InTraffic += t
+	case TrafficOut:
+		p.OutTraffic += t
+	}
+}
+
+func (p *PortInfo) GetTraffic() (in int64, out int64) {
+	p.Lock()
+	defer p.Unlock()
+
+	p.Index++
+	return p.InTraffic, p.OutTraffic
+}
+
+func (p *PortInfo) AddTCP(conn net.Listener) {
+	p.Lock()
+	defer p.Unlock()
+	p.TCPConn = conn
+}
+
+func (p *PortInfo) AddUDP(conn net.PacketConn) {
+	p.Lock()
+	defer p.Unlock()
+	p.UDPConn = conn
+}
+
+func (p *PortInfo) Println() {
+	fmt.Println("Index:",p.Index,"Port:",p.Port,"In:",p.InTraffic,"Out",p.OutTraffic)
 }
 
 var config Config
-var PortList map[int]*PortInfo
+var PortList = make(map[int]*PortInfo)
 
 var logger = log.New(os.Stderr, "", log.Lshortfile|log.LstdFlags)
 
@@ -103,19 +138,22 @@ func main() {
 	var addr, method, password string
 
 	if flags.Manager != "" {
-		if strings.HasPrefix(addr, "ss://") {
-			addr, method, password, err = parseURL(addr)
+		if strings.HasPrefix(flags.Manager, "ss://") {
+			addr, method, password, err = parseURL(flags.Manager)
 			if err != nil {
 				log.Fatal(err)
 			}
-			config.ManagerMode = true
+		} else {
+			log.Fatal("without Prefix ss://")
 		}
 	} else if flags.Server != "" {
-		if strings.HasPrefix(addr, "ss://") {
-			addr, method, password, err = parseURL(addr)
+		if strings.HasPrefix(flags.Server, "ss://") {
+			addr, method, password, err = parseURL(flags.Server)
 			if err != nil {
 				log.Fatal(err)
 			}
+		} else {
+			log.Fatal("without Prefix ss://")
 		}
 	} else {
 		if flags.ConfigFile != "" {
@@ -128,9 +166,11 @@ func main() {
 		password = config.Password
 	}
 
-	if _, err := net.ResolveTCPAddr("tcp", addr); err != nil {
+	addr_tmp, err := net.ResolveTCPAddr("tcp", addr);
+	if err != nil {
 		log.Fatal(err)
 	}
+	config.Port = addr_tmp.Port
 
 	if password == "" {
 		log.Fatal("password is empty")
@@ -142,8 +182,17 @@ func main() {
 			log.Fatal(err)
 		}
 
-		go udpRemote(addr, cipher.PacketConn)
-		go tcpRemote(addr, cipher.StreamConn)
+		PortList[config.Port] = &PortInfo{
+			Index:      0,
+			Port:       config.Port,
+			Method:     method,
+			Password:   password,
+			InTraffic:  0,
+			OutTraffic: 0,
+		}
+
+		go udpRemote(addr, cipher.PacketConn, PortList[config.Port])
+		go tcpRemote(addr, cipher.StreamConn, PortList[config.Port])
 	}
 
 	sigCh := make(chan os.Signal, 1)
