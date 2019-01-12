@@ -3,16 +3,13 @@ package main
 import (
 	"testing"
 	"fmt"
-	"time"
+	"net"
 )
 
-func TestParse(test *testing.T) {
-	// s := "aewaea:8888"
-	// a, r := net.ResolveTCPAddr("tcp", s)
-	// fmt.Println(a, r)
-	a := 10
+const num = iota
 
-	t1 := time.Duration(a) * time.Minute
-	t2 := time.Duration(5 * time.Second)
-	fmt.Println(t1, t2)
+func TestParse(test *testing.T) {
+	addr := ":80"
+	mm,err := net.ResolveTCPAddr("tcp",addr)
+	fmt.Println(mm,err)
 }
