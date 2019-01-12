@@ -62,7 +62,7 @@ func (p *PortInfo) Println() {
 	fmt.Println("Index:", p.Index, "Port:", p.Port, "In:", p.InTraffic, "Out", p.OutTraffic)
 }
 
-func AddPort(port int, method, password string) {
+func NewPort(port int, method, password string) {
 	PortList[port] = &PortInfo{
 		Index:      0,
 		Port:       port,

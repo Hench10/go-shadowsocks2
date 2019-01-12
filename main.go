@@ -109,7 +109,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		AddPort(config.Port, method, password)
+		NewPort(config.Port, method, password)
 
 		go udpRemote(addr, cipher.PacketConn, PortList[config.Port])
 		go tcpRemote(addr, cipher.StreamConn, PortList[config.Port])
