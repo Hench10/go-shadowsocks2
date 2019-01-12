@@ -16,7 +16,6 @@ import (
 	"io/ioutil"
 	"encoding/json"
 	"net"
-	"sync"
 	"errors"
 )
 
@@ -34,62 +33,7 @@ type Config struct {
 	ManagerMethod string `json:"manager_method"`
 }
 
-const (
-	TrafficIn  = iota
-	TrafficOut
-)
-
-type PortInfo struct {
-	sync.RWMutex
-	Index      int64
-	Port       int
-	Method     string
-	Password   string
-	InTraffic  int64
-	OutTraffic int64
-	TCPConn    net.Listener
-	UDPConn    net.PacketConn
-}
-
-func (p *PortInfo) AddTraffic(InOut int, t int64) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.Println()
-	switch InOut {
-	case TrafficIn:
-		p.InTraffic += t
-	case TrafficOut:
-		p.OutTraffic += t
-	}
-}
-
-func (p *PortInfo) GetTraffic() (in int64, out int64) {
-	p.Lock()
-	defer p.Unlock()
-
-	p.Index++
-	return p.InTraffic, p.OutTraffic
-}
-
-func (p *PortInfo) AddTCP(conn net.Listener) {
-	p.Lock()
-	defer p.Unlock()
-	p.TCPConn = conn
-}
-
-func (p *PortInfo) AddUDP(conn net.PacketConn) {
-	p.Lock()
-	defer p.Unlock()
-	p.UDPConn = conn
-}
-
-func (p *PortInfo) Println() {
-	fmt.Println("Index:", p.Index, "Port:", p.Port, "In:", p.InTraffic, "Out", p.OutTraffic)
-}
-
 var config Config
-var PortList = make(map[int]*PortInfo)
 
 var logger = log.New(os.Stderr, "", log.Lshortfile|log.LstdFlags)
 
@@ -140,7 +84,7 @@ func main() {
 		}
 	} else {
 		if flags.ConfigFile != "" {
-			if err = ParseConfig(flags.ConfigFile, &config); err != nil {
+			if err = parseConfig(flags.ConfigFile, &config); err != nil {
 				log.Fatal(err)
 			}
 		}
@@ -165,14 +109,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		PortList[config.Port] = &PortInfo{
-			Index:      0,
-			Port:       config.Port,
-			Method:     method,
-			Password:   password,
-			InTraffic:  0,
-			OutTraffic: 0,
-		}
+		AddPort(config.Port, method, password)
 
 		go udpRemote(addr, cipher.PacketConn, PortList[config.Port])
 		go tcpRemote(addr, cipher.StreamConn, PortList[config.Port])
@@ -201,7 +138,7 @@ func parseURL(s string) (addr, method, password string, err error) {
 	return
 }
 
-func ParseConfig(path string, config interface{}) (err error) {
+func parseConfig(path string, config interface{}) (err error) {
 	file, err := os.Open(path) // For read access.
 	if err != nil {
 		return
@@ -218,3 +155,5 @@ func ParseConfig(path string, config interface{}) (err error) {
 	}
 	return
 }
+
+

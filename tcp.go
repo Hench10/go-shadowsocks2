@@ -36,6 +36,11 @@ func tcpRemote(addr string, shadow func(net.Conn) net.Conn, porter *PortInfo) {
 				return
 			}
 
+			if _, err := net.ResolveTCPAddr("tcp", tgt.String()); err != nil {
+				logf("can not resolve target: %v", err)
+				return
+			}
+
 			rc, err := net.Dial("tcp", tgt.String())
 			if err != nil {
 				logf("failed to connect to target: %v", err)
