@@ -2,7 +2,6 @@ package main
 
 import (
 	"net"
-	"fmt"
 	"sync"
 )
 
@@ -59,7 +58,7 @@ func (p *PortInfo) AddUDP(conn net.PacketConn) {
 }
 
 func (p *PortInfo) Println() {
-	fmt.Println("Index:", p.Index, "Port:", p.Port, "In:", p.InTraffic, "Out", p.OutTraffic)
+	logf("Index:", p.Index, "Port:", p.Port, "In:", p.InTraffic, "Out", p.OutTraffic)
 }
 
 func NewPort(port int, method, password string) {

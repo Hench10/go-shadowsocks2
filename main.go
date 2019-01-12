@@ -27,8 +27,9 @@ type Config struct {
 	Timeout  int    `json:"timeout"`
 	// Core     int    `json:"core"`
 
-	// For Reporter
-	ManagerAddr   string `json:"manager_addr"`
+	// For Manage Mode
+	ManagerAddr   string `json:"manager_addr"` //only Reporter
+	ManagerPort   string `json:"manager_port"` // only Manager
 	ManagerPwd    string `json:"manager_pwd"`
 	ManagerMethod string `json:"manager_method"`
 }
