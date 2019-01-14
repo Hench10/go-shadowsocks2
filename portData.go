@@ -3,6 +3,7 @@ package main
 import (
 	"net"
 	"sync"
+	"encoding/json"
 )
 
 const (
@@ -62,6 +63,7 @@ func (p *PortInfo) Println() {
 }
 
 func NewPort(port int, method, password string) {
+	DelPort(port)
 	PortList[port] = &PortInfo{
 		Index:      0,
 		Port:       port,
@@ -85,4 +87,17 @@ func DelPort(port int) {
 	if GetPort(port) != nil {
 		delete(PortList, port)
 	}
+}
+
+func JsonPort() []byte {
+	data, err := json.Marshal(PortList)
+	if err != nil || len(data) == 0{
+		return []byte("")
+	}
+
+	for k := range PortList{
+		PortList[k].Index++
+	}
+
+	return data
 }
