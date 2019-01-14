@@ -94,11 +94,11 @@ func main() {
 		password = config.Password
 	}
 
-	addr_tmp, err := net.ResolveTCPAddr("tcp", addr);
+	addrTmp, err := net.ResolveTCPAddr("tcp", addr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	config.Port = addr_tmp.Port
+	config.Port = addrTmp.Port
 
 	if password == "" {
 		log.Fatal("password is empty")
