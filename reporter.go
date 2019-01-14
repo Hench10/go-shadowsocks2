@@ -27,6 +27,7 @@ func runReporter() {
 	m, err := net.ResolveUDPAddr("udp", config.ManagerAddr)
 
 	go reporter(c, m)
+	go cmdHandle(c)
 }
 
 func reporter(conn net.PacketConn, manager net.Addr) {
