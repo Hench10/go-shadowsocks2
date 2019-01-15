@@ -1,0 +1,7 @@
+{
+    "debug":true,
+    "manager_addr":"127.0.0.1:1055",
+    "manager_port":1055,
+    "manager_pwd":"password",
+    "manager_method":"AES-192-CFB"
+}

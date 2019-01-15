@@ -27,9 +27,9 @@ type Config struct {
 	Timeout  int    `json:"timeout"`
 	// Core     int    `json:"core"`
 
-	// For Manage Mode
-	ManagerAddr   string `json:"manager_addr"` //only Reporter
-	ManagerPort   string `json:"manager_port"` // only Manager
+	// For Satellite Mode
+	ManagerAddr   string `json:"manager_addr"` // only Reporter
+	ManagerPort   int `json:"manager_port"` // only Manager
 	ManagerPwd    string `json:"manager_pwd"`
 	ManagerMethod string `json:"manager_method"`
 }
@@ -74,37 +74,50 @@ func main() {
 	var key []byte
 	var err error
 	var addr, method, password string
+	var workerOn, managerOn, satellite = false, false, false
 
-	if flags.Manager != "" {
+	switch {
+	case flags.Manager != "":
 		if addr, method, password, err = parseURL(flags.Manager); err != nil {
 			log.Fatal(err)
 		}
-	} else if flags.Server != "" {
+		satellite = true
+	case flags.Server != "":
 		if addr, method, password, err = parseURL(flags.Server); err != nil {
 			log.Fatal(err)
 		}
-	} else {
-		if flags.ConfigFile != "" {
-			if err = parseConfig(flags.ConfigFile, &config); err != nil {
-				log.Fatal(err)
-			}
+		workerOn = true
+	case config.Password != "":
+		addr, method, password = ":"+string(config.Port), config.Method, config.Password
+		workerOn = true
+	case flags.ConfigFile != "":
+		if err = parseConfig(flags.ConfigFile, &config); err != nil {
+			log.Fatal(err)
 		}
-		addr = ":" + string(config.Port)
-		method = config.Method
-		password = config.Password
+		if config.ManagerAddr != "" && config.ManagerPwd != "" && config.ManagerMethod != ""{
+			satellite = true
+		}
+		if config.ManagerPort != 0 && config.ManagerPwd != "" && config.ManagerMethod != ""{
+			managerOn = true
+		}
+		if config.Password != ""{
+			workerOn = true
+		}
+	default:
+		log.Fatal("Params Inexplicit")
 	}
 
-	addrTmp, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	config.Port = addrTmp.Port
+	if workerOn {
+		addrTmp, err := net.ResolveTCPAddr("tcp", addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		config.Port = addrTmp.Port
 
-	if password == "" {
-		log.Fatal("password is empty")
-	}
+		if password == "" {
+			log.Fatal("password is empty")
+		}
 
-	if flags.Manager == "" {
 		cipher, err := core.PickCipher(method, key, password)
 		if err != nil {
 			log.Fatal(err)
@@ -114,6 +127,14 @@ func main() {
 
 		go udpRemote(addr, cipher.PacketConn, PortList[config.Port])
 		go tcpRemote(addr, cipher.StreamConn, PortList[config.Port])
+	}
+
+	if satellite {
+		runReporter()
+	}
+
+	if managerOn {
+		runManager()
 	}
 
 	sigCh := make(chan os.Signal, 1)
@@ -156,5 +177,3 @@ func parseConfig(path string, config interface{}) (err error) {
 	}
 	return
 }
-
-

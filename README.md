@@ -53,18 +53,18 @@ config file example:
     "debug":true,
     "server_port":1066,
     "password":"password",
-    "method": "aes-128-cfb",
+    "method": "AES-192-CFB",
     "timeout":600,
     "manager_addr":"192.168.1.10:2066",
     "manager_pwd":"password",
-    "manager_method":"aes-128-cfb"
+    "manager_method":"AES-192-CFB"
 }
 ```
 
 * Way 3
 
 ```sh
-shadowsocks2 -p 1066 -pwd "password" -m "aes-128-cfb" -t 600 -d
+shadowsocks2 -p 1066 -pwd "password" -m "AES-192-CFB" -t 600 -d
 ```
 
 Or by default value, only set password

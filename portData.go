@@ -84,18 +84,20 @@ func GetPort(port int) *PortInfo {
 }
 
 func DelPort(port int) {
-	if GetPort(port) != nil {
+	if p := GetPort(port);p != nil {
+		p.UDPConn.Close()
+		p.TCPConn.Close()
 		delete(PortList, port)
 	}
 }
 
 func JsonPort() []byte {
 	data, err := json.Marshal(PortList)
-	if err != nil || len(data) == 0{
+	if err != nil || len(data) == 0 {
 		return []byte("")
 	}
 
-	for k := range PortList{
+	for k := range PortList {
 		PortList[k].Index++
 	}
 
