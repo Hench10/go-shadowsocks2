@@ -8,33 +8,35 @@ import (
 	"strings"
 )
 
-type Manager struct {
-	L       net.PacketConn
-	Workers map[string]*Worker
-	Users   map[string]*User
-}
+type (
+	Manager struct {
+		L       net.PacketConn
+		Workers map[string]*Worker
+		Users   map[string]*User
+	}
 
-type Worker struct {
-	Addr  net.Addr
-	Conn  net.PacketConn
-	Ports map[int]*Port
-}
+	Worker struct {
+		Addr  net.Addr
+		Conn  net.PacketConn
+		Ports map[int]*Port
+	}
 
-type Port struct {
-	P          int
-	Method     string
-	Password   string
-	TrafficIn  int64
-	TrafficOut int64
-	UserID     string
-}
+	Port struct {
+		P          int
+		Method     string
+		Password   string
+		TrafficIn  int64
+		TrafficOut int64
+		UserID     string
+	}
 
-type User struct {
-	UserID     string
-	Token      string
-	WorkerIP   string
-	WorkerPort int
-}
+	User struct {
+		UserID     string
+		Token      string
+		WorkerIP   string
+		WorkerPort int
+	}
+)
 
 var e *echo.Echo
 var brain Manager
@@ -52,7 +54,7 @@ func Start(L net.PacketConn) {
 	e.Use(middleware.Recover())
 
 	// Route => handler
-	admin := e.Group("/admin",middleware.)
+	admin := e.Group("/admin", midAuth)
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!\n")
 	})
@@ -63,8 +65,8 @@ func Start(L net.PacketConn) {
 	e.Logger.Fatal(e.Start(":1323"))
 }
 
-func listener(){
-	l :=  brain.L
+func listener() {
+	l := brain.L
 	for {
 		data := make([]byte, 300)
 		_, _, err := l.ReadFrom(data)
@@ -84,7 +86,6 @@ func listener(){
 		}
 	}
 }
-
 
 // func getUser(c echo.Context) error {
 // 	// User ID from path `users/:id`
