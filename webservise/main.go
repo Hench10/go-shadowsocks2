@@ -52,6 +52,7 @@ func Start(L net.PacketConn) {
 	e.Use(middleware.Recover())
 
 	// Route => handler
+	admin := e.Group("/admin",middleware.)
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!\n")
 	})
