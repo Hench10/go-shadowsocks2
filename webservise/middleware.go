@@ -1,4 +1,4 @@
-package manager
+package webservise
 
 import (
 	"github.com/labstack/echo"

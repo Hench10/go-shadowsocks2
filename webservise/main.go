@@ -1,4 +1,4 @@
-package manager
+package webservise
 
 import (
 	"net"
@@ -42,23 +42,43 @@ var e *echo.Echo
 var brain Manager
 var workers = make(map[string]*Worker)
 var users = make(map[string]*User)
+var debug = false
 
-func Start(L net.PacketConn) {
+func Start(L net.PacketConn,d bool) {
+	debug = d
 	brain = Manager{L, workers, users}
 
 	// Echo instance
 	e = echo.New()
 
+	// Setting
+	e.HideBanner = true
+	e.Logger = NewLogger("sys")
+
+	// Trace Log
+	if debug {
+		e.Logger.SetLevel(DEBUG)
+		e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+			Format: "[Website]${time_custom} Request:${remote_ip}->${method}:'${uri}' response:${status} ${error}\n",
+			CustomTimeFormat: "2006/01/02 15:04:05",
+		}))
+	}
+
 	// Middleware
-	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
-	// Route => handler
-	admin := e.Group("/admin", midAuth)
-	e.GET("/", func(c echo.Context) error {
+	// Route - default
+	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!\n")
 	})
 
+	// Route - admin
+	admin := e.Group("/admin", midAuth)
+	admin.GET("", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Hello, World!\n")
+	})
+
+	// Socks Server
 	go listener()
 
 	// Start server
@@ -79,10 +99,10 @@ func listener() {
 		// var res []byte
 		switch {
 		case strings.HasPrefix(command, "hello"):
-			e.Logger.Printf("received hello")
+			e.Logger.Info("received hello")
 		case strings.HasPrefix(command, "response:"):
 			// res = handleRemovePort(bytes.Trim(data[9:], "\x00\r\n "))
-			e.Logger.Printf("received hello")
+			e.Logger.Info("received hello")
 		}
 	}
 }
