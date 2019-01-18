@@ -35,7 +35,8 @@ func HTTPErrorHandler(err error, c echo.Context) {
 	// Send response
 	if !c.Response().Committed {
 		if c.Request().Method == http.MethodHead || c.Request().Method == http.MethodGet { // Issue #608
-			err = c.String(code,msg)
+			err = c.File("./webservise/static/404.html")
+			// err = c.String(code,msg)
 		} else {
 			err = c.JSON(code, msg)
 		}
