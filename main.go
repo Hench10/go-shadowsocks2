@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 	"./core"
+	"./webservise"
 	"io/ioutil"
 	"encoding/json"
 	"net"
@@ -32,6 +33,9 @@ type Config struct {
 	ManagerPort   int `json:"manager_port"` // only Manager
 	ManagerPwd    string `json:"manager_pwd"`
 	ManagerMethod string `json:"manager_method"`
+
+	// Database
+	Database webservise.DBConfig `json:"database"`
 }
 
 var config Config

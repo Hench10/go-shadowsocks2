@@ -1,7 +1,14 @@
 {
-    "debug":true,
-    "manager_addr":"127.0.0.1:1055",
-    "manager_port":1055,
-    "manager_pwd":"password",
-    "manager_method":"AES-192-CFB"
+  "debug": true,
+  "manager_addr": "127.0.0.1:1055",
+  "manager_port": 1055,
+  "manager_pwd": "password",
+  "manager_method": "AES-192-CFB",
+  "database": {
+    "user": "root",
+    "password": "",
+    "host": "127.0.0.1",
+    "port": "3306",
+    "database": "test"
+  }
 }

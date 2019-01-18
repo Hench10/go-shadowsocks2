@@ -2,13 +2,26 @@ package webservise
 
 import (
 	"net"
-	"github.com/labstack/echo"
-	"net/http"
-	"github.com/labstack/echo/middleware"
 	"strings"
+	"net/http"
+
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
+
+	_ "github.com/go-sql-driver/mysql"
+	"database/sql"
+	"fmt"
+	"strconv"
 )
 
 type (
+	DBConfig struct {
+		User     string `json:"user"`
+		Password string `json:"password"`
+		Host     string `json:"host"`
+		Port     string `json:"port"`
+		Database string `json:"database"`
+	}
 	Manager struct {
 		L       net.PacketConn
 		Workers map[string]*Worker
@@ -43,8 +56,9 @@ var brain Manager
 var workers = make(map[string]*Worker)
 var users = make(map[string]*User)
 var debug = false
+var db *sql.DB
 
-func Start(L net.PacketConn,d bool) {
+func Start(L net.PacketConn, dbf DBConfig, d bool) {
 	debug = d
 	brain = Manager{L, workers, users}
 
@@ -52,14 +66,22 @@ func Start(L net.PacketConn,d bool) {
 	e = echo.New()
 
 	// Setting
+	e.Debug = debug
 	e.HideBanner = true
 	e.Logger = NewLogger("sys")
+	e.HTTPErrorHandler = HTTPErrorHandler
+
+
+	// Part Service
+	if err := DBLink(dbf); err != nil {
+		e.Logger.Fatal(err)
+	}
 
 	// Trace Log
-	if debug {
+	if e.Debug {
 		e.Logger.SetLevel(DEBUG)
 		e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-			Format: "[Website]${time_custom} Request:${remote_ip}->${method}:'${uri}' response:${status} ${error}\n",
+			Format:           "[Website]${time_custom} Request:${remote_ip}->${method}:'${uri}' response:${status} ${error}\n",
 			CustomTimeFormat: "2006/01/02 15:04:05",
 		}))
 	}
@@ -71,6 +93,7 @@ func Start(L net.PacketConn,d bool) {
 	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!\n")
 	})
+	e.GET("/user/:id", getUser)
 
 	// Route - admin
 	admin := e.Group("/admin", midAuth)
@@ -83,6 +106,16 @@ func Start(L net.PacketConn,d bool) {
 
 	// Start server
 	e.Logger.Fatal(e.Start(":1323"))
+}
+
+func DBLink(dbf DBConfig) (err error) {
+	// root:password@tcp(127.0.0.1:3306)/database?charset=utf8
+	uri := dbf.User + ":" + dbf.Password + "@tcp(" + dbf.Host + ":" + dbf.Port + ")/" + dbf.Database + "?charset=utf8"
+	db, err = sql.Open("mysql", uri)
+	db.SetMaxOpenConns(2000)
+	db.SetMaxIdleConns(1000)
+	db.Ping()
+	return
 }
 
 func listener() {
@@ -107,10 +140,17 @@ func listener() {
 	}
 }
 
-// func getUser(c echo.Context) error {
-// 	// User ID from path `users/:id`
-// 	id := c.Param("id")
-//  c.QueryParam("team")
-//  name := c.FormValue("name")
-// 	return c.String(http.StatusOK, id)
-// }
+func getUser(c echo.Context) error {
+	var quote string
+	id,_ := strconv.Atoi(c.Param("id"))
+
+	row := db.QueryRow("SELECT id, `name` FROM user WHERE id = ?", id)
+	err := row.Scan(&id, &quote)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	response := User{UserID: strconv.Itoa(id), Token: quote}
+	return c.JSON(http.StatusOK, response)
+}
