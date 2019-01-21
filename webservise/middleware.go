@@ -13,6 +13,14 @@ func midAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
+func answer(sta int, msg string,data interface{})map[string]interface{}{
+	return map[string]interface{}{
+		"sta":sta,
+		"msg":msg,
+		"data":data,
+	}
+}
+
 func HTTPErrorHandler(err error, c echo.Context) {
 	var (
 		code = http.StatusInternalServerError
@@ -32,10 +40,12 @@ func HTTPErrorHandler(err error, c echo.Context) {
 		msg = http.StatusText(code)
 	}
 
+	c.Logger().Error(msg)
+
 	// Send response
 	if !c.Response().Committed {
 		if c.Request().Method == http.MethodHead || c.Request().Method == http.MethodGet { // Issue #608
-			err = c.File("./webservise/static/404.html")
+			err = c.File("./static/404.html")
 			// err = c.String(code,msg)
 		} else {
 			err = c.JSON(code, msg)

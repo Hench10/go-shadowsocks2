@@ -10,8 +10,9 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"database/sql"
-	"fmt"
 	"strconv"
+	"encoding/json"
+	"bytes"
 )
 
 type (
@@ -71,7 +72,6 @@ func Start(L net.PacketConn, dbf DBConfig, d bool) {
 	e.Logger = NewLogger("sys")
 	e.HTTPErrorHandler = HTTPErrorHandler
 
-
 	// Part Service
 	if err := DBLink(dbf); err != nil {
 		e.Logger.Fatal(err)
@@ -97,21 +97,27 @@ func Start(L net.PacketConn, dbf DBConfig, d bool) {
 
 	// Route - admin
 	admin := e.Group("/admin", midAuth)
-	admin.GET("", func(c echo.Context) error {
-		return c.String(http.StatusOK, "Hello, World!\n")
-	})
+	admin.GET("", adminIndex)
+	admin.GET("/", adminIndex)
+	admin.GET("/add/:p", addPort)
+	admin.GET("/rm/:p", removePort)
+	admin.GET("/ping/:p", pingWorker)
+	admin.GET("/pong/:p", pong)
 
 	// Socks Server
 	go listener()
 
 	// Start server
-	e.Logger.Fatal(e.Start(":1323"))
+	e.Logger.Fatal(e.Start(":81"))
 }
 
 func DBLink(dbf DBConfig) (err error) {
 	// root:password@tcp(127.0.0.1:3306)/database?charset=utf8
 	uri := dbf.User + ":" + dbf.Password + "@tcp(" + dbf.Host + ":" + dbf.Port + ")/" + dbf.Database + "?charset=utf8"
 	db, err = sql.Open("mysql", uri)
+	if err != nil {
+		e.Logger.Fatal(err)
+	}
 	db.SetMaxOpenConns(2000)
 	db.SetMaxIdleConns(1000)
 	db.Ping()
@@ -122,11 +128,21 @@ func listener() {
 	l := brain.L
 	for {
 		data := make([]byte, 300)
-		_, _, err := l.ReadFrom(data)
+		_, addr, err := l.ReadFrom(data)
 		if err != nil {
 			e.Logger.Printf("UDP remote listen error: %v", err)
 			continue
 		}
+
+		ip, _ := net.ResolveUDPAddr(addr.String(), addr.Network())
+		if n,ok := brain.Workers[string(ip.IP)];!ok{
+			brain.Workers[string(ip.IP)] = &Worker{
+				Addr:addr,
+				Conn  net.PacketConn
+				Ports map[int]*Port
+			}
+		}
+
 
 		command := string(data)
 		// var res []byte
@@ -142,15 +158,52 @@ func listener() {
 
 func getUser(c echo.Context) error {
 	var quote string
-	id,_ := strconv.Atoi(c.Param("id"))
+	id, _ := strconv.Atoi(c.Param("id"))
 
 	row := db.QueryRow("SELECT id, `name` FROM user WHERE id = ?", id)
 	err := row.Scan(&id, &quote)
 
 	if err != nil {
-		fmt.Println(err)
+		e.Logger.Error(err)
 	}
 
 	response := User{UserID: strconv.Itoa(id), Token: quote}
-	return c.JSON(http.StatusOK, response)
+	return c.JSON(http.StatusOK, answer(1, "success", response))
+}
+
+func adminIndex(c echo.Context) error {
+	return c.File("./static/admin.html")
+}
+
+func addPort(c echo.Context) error {
+	p := c.Param("p")
+	i := strings.Index(p, "@")
+	port := p[:i]
+	pwd := p[i+1:]
+
+	info := map[string]interface{}{
+		"port":     port,
+		"password": pwd,
+		"method":   "AES-192-CFB",
+	}
+
+	var buffer bytes.Buffer
+	buffer.Write([]byte("add:"))
+	js, _ := json.Marshal(info)
+	buffer.Write(js)
+
+	brain.L.WriteTo(buffer.Bytes(), brain.Workers["127.0.0.1"].Addr)
+	return c.JSON(http.StatusOK, answer(1, "success", ""))
+}
+
+func removePort(c echo.Context) error {
+	return c.JSON(http.StatusOK, answer(1, "success", ""))
+}
+
+func pingWorker(c echo.Context) error {
+	return c.JSON(http.StatusOK, answer(1, "success", ""))
+}
+
+func pong(c echo.Context) error {
+	return c.JSON(http.StatusOK, answer(1, "success", ""))
 }

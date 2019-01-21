@@ -1,0 +1,7 @@
+{
+    "debug":true,
+    "server_port":1066,
+    "password":"password",
+    "method": "AES-192-CFB",
+    "timeout":600
+}
