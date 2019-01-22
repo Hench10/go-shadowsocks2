@@ -25,30 +25,29 @@ type (
 	}
 	Manager struct {
 		L       net.PacketConn
-		Workers map[string]*Worker
-		Users   map[string]*User
+		Workers map[string]*Worker `json:"Workers"`
+		Users   map[string]*User   `json:"Users"`
 	}
 
 	Worker struct {
-		Addr  net.Addr
-		Conn  net.PacketConn
-		Ports map[int]*Port
+		Addr  net.Addr      `json:"Addr"`
+		Ports map[int]*Port `json:"Ports"`
 	}
 
 	Port struct {
-		P          int
-		Method     string
-		Password   string
-		TrafficIn  int64
-		TrafficOut int64
-		UserID     string
+		P          int    `json:"Port"`
+		Method     string `json:"Method"`
+		Password   string `json:"Password"`
+		TrafficIn  int64  `json:"TrafficIn"`
+		TrafficOut int64  `json:"TrafficOut"`
+		UserID     string `json:"UserID"`
 	}
 
 	User struct {
-		UserID     string
-		Token      string
-		WorkerIP   string
-		WorkerPort int
+		UserID     string `json:"UserID"`
+		Token      string `json:"Token"`
+		WorkerIP   string `json:"WorkerIP"`
+		WorkerPort int    `json:"WorkerPort"`
 	}
 )
 
@@ -134,26 +133,51 @@ func listener() {
 			continue
 		}
 
-		ip, _ := net.ResolveUDPAddr(addr.String(), addr.Network())
-		if n,ok := brain.Workers[string(ip.IP)];!ok{
-			brain.Workers[string(ip.IP)] = &Worker{
-				Addr:addr,
-				Conn  net.PacketConn
-				Ports map[int]*Port
-			}
+		worker, ok := brain.Workers[addr.String()];
+		if !ok {
+			worker = newWorker(addr)
+			brain.Workers[addr.String()] = worker
 		}
-
 
 		command := string(data)
 		// var res []byte
 		switch {
 		case strings.HasPrefix(command, "hello"):
+			clearPorts(worker)
 			e.Logger.Info("received hello")
 		case strings.HasPrefix(command, "response:"):
 			// res = handleRemovePort(bytes.Trim(data[9:], "\x00\r\n "))
 			e.Logger.Info("received hello")
+		case strings.HasPrefix(command, "ping:"):
+			// res = handleRemovePort(bytes.Trim(data[9:], "\x00\r\n "))
+			e.Logger.Info("received ping")
 		}
 	}
+}
+
+func newWorker(addr net.Addr) *Worker {
+	return &Worker{Addr: addr}
+}
+
+func newPort() {
+
+}
+
+func clearPorts(worker *Worker) {
+	if len(worker.Ports) == 0 {
+		return
+	}
+
+	for _, v := range worker.Ports {
+		if _, ok := users[v.UserID]; ok {
+			users[v.UserID].WorkerIP = ""
+			users[v.UserID].WorkerPort = 0
+		}
+	}
+}
+
+func staticPorts(worker *Worker, data string) {
+
 }
 
 func getUser(c echo.Context) error {
@@ -172,7 +196,8 @@ func getUser(c echo.Context) error {
 }
 
 func adminIndex(c echo.Context) error {
-	return c.File("./static/admin.html")
+	return c.JSON(http.StatusOK, answer(1, "success", brain))
+	// return c.File("./static/admin.html")
 }
 
 func addPort(c echo.Context) error {
