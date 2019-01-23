@@ -29,7 +29,7 @@ func HTTPErrorHandler(err error, c echo.Context) {
 
 	if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
-		msg = "unknow Err Message"
+		msg = http.StatusText(code)
 		fmt.Errorf("%v, %v", err, he.Message)
 		if he.Internal != nil {
 			err = fmt.Errorf("%v, %v", err, he.Internal)

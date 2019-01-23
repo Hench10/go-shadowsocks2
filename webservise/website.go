@@ -89,6 +89,7 @@ func Start(L net.PacketConn, dbf DBConfig, d bool) {
 	e.Use(middleware.Recover())
 
 	// Route - default
+	e.Static("/", "static")
 	e.GET("/test", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!\n")
 	})
@@ -203,7 +204,7 @@ func adminIndex(c echo.Context) error {
 func addPort(c echo.Context) error {
 	p := c.Param("p")
 	i := strings.Index(p, "@")
-	port := p[:i]
+	port,_ := strconv.Atoi(p[:i])
 	pwd := p[i+1:]
 
 	info := map[string]interface{}{
@@ -217,7 +218,10 @@ func addPort(c echo.Context) error {
 	js, _ := json.Marshal(info)
 	buffer.Write(js)
 
-	brain.L.WriteTo(buffer.Bytes(), brain.Workers["127.0.0.1"].Addr)
+	for _, v := range (brain.Workers) {
+		brain.L.WriteTo(buffer.Bytes(), v.Addr)
+	}
+
 	return c.JSON(http.StatusOK, answer(1, "success", ""))
 }
 

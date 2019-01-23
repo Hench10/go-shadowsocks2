@@ -15,21 +15,20 @@ var PortList = make(map[int]*PortInfo)
 
 type PortInfo struct {
 	sync.RWMutex
-	Index      int64
-	Port       int
-	Method     string
-	Password   string
-	InTraffic  int64
-	OutTraffic int64
-	TCPConn    net.Listener
-	UDPConn    net.PacketConn
+	Index      int64          `json:"index"`
+	Port       int            `json:"port"`
+	Method     string         `json:"method"`
+	Password   string         `json:"password"`
+	InTraffic  int64          `json:"in"`
+	OutTraffic int64          `json:"out"`
+	TCPConn    net.Listener   `json:"-"`
+	UDPConn    net.PacketConn `json:"-"`
 }
 
 func (p *PortInfo) AddTraffic(InOut int, t int64) {
 	p.Lock()
 	defer p.Unlock()
 
-	p.Println()
 	switch InOut {
 	case TrafficIn:
 		p.InTraffic += t
@@ -84,7 +83,7 @@ func GetPort(port int) *PortInfo {
 }
 
 func DelPort(port int) {
-	if p := GetPort(port);p != nil {
+	if p := GetPort(port); p != nil {
 		p.UDPConn.Close()
 		p.TCPConn.Close()
 		delete(PortList, port)
@@ -97,7 +96,8 @@ func JsonPort() []byte {
 		return []byte("")
 	}
 
-	for k := range PortList {
+	for k,v := range PortList {
+		v.Println()
 		PortList[k].Index++
 	}
 

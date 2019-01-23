@@ -39,7 +39,7 @@ func runReporter() {
 	go reporter(c, m)
 	go cmdHandle(c)
 
-	fmt.Println("Connect To Manager ",config.ManagerAddr)
+	fmt.Println("Connect To Manager ", config.ManagerAddr)
 }
 
 func reporter(conn net.PacketConn, manager net.Addr) {
@@ -67,20 +67,21 @@ func reporter(conn net.PacketConn, manager net.Addr) {
 
 func cmdHandle(conn net.PacketConn) {
 	for {
-		data := make([]byte, 300)
-		_, manager, err := conn.ReadFrom(data)
+		logf("Receive a command")
+		data := make([]byte, 1024)
+		n, manager, err := conn.ReadFrom(data)
 		if err != nil {
 			logf("UDP remote listen error: %v", err)
 			continue
 		}
 
-		command := string(data)
+		command := string(data[:n])
 		var res []byte
 		switch {
 		case strings.HasPrefix(command, "add:"):
-			res = handleAddPort(bytes.Trim(data[4:], "\x00\r\n "))
+			res = handleAddPort(bytes.Trim(data[4:n], "\x00\r\n "))
 		case strings.HasPrefix(command, "remove:"):
-			res = handleRemovePort(bytes.Trim(data[7:], "\x00\r\n "))
+			res = handleRemovePort(bytes.Trim(data[7:n], "\x00\r\n "))
 		case strings.HasPrefix(command, "ping"):
 			res = []byte("pong")
 		}
@@ -104,18 +105,16 @@ func handleAddPort(data []byte) (res []byte) {
 	if err := json.Unmarshal(data, &params); err != nil {
 		return response("add", false, err.Error(), string(data))
 	}
-
 	if params.Port == 0 || params.Password == "" || params.Method == "" {
 		return response("add", false, "No Enough Params [port,password,method]", string(data))
 	}
-
 	cipher, err := core.PickCipher(params.Method, res, params.Password)
 	if err != nil {
 		return response("add", false, "New Cipher Failed", string(data))
 	}
 
 	NewPort(params.Port, params.Method, params.Password)
-	addr := strconv.Itoa(params.Port)
+	addr := ":" + strconv.Itoa(params.Port)
 
 	go udpRemote(addr, cipher.PacketConn, PortList[params.Port])
 	go tcpRemote(addr, cipher.StreamConn, PortList[params.Port])
