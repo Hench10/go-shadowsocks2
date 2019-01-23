@@ -29,7 +29,7 @@ func HTTPErrorHandler(err error, c echo.Context) {
 
 	if he, ok := err.(*echo.HTTPError); ok {
 		code = he.Code
-		msg = http.StatusText(code)
+		msg = "未处理的错误信息"
 		fmt.Errorf("%v, %v", err, he.Message)
 		if he.Internal != nil {
 			err = fmt.Errorf("%v, %v", err, he.Internal)
@@ -39,8 +39,6 @@ func HTTPErrorHandler(err error, c echo.Context) {
 	} else {
 		msg = http.StatusText(code)
 	}
-
-	c.Logger().Error(msg)
 
 	// Send response
 	if !c.Response().Committed {

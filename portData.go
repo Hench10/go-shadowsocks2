@@ -96,8 +96,7 @@ func JsonPort() []byte {
 		return []byte("")
 	}
 
-	for k,v := range PortList {
-		v.Println()
+	for k := range PortList {
 		PortList[k].Index++
 	}
 

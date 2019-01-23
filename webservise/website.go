@@ -25,29 +25,30 @@ type (
 	}
 	Manager struct {
 		L       net.PacketConn
-		Workers map[string]*Worker `json:"Workers"`
-		Users   map[string]*User   `json:"Users"`
+		Workers map[string]*Worker `json:"workers"`
+		Users   map[string]*User   `json:"users"`
 	}
 
 	Worker struct {
-		Addr  net.Addr      `json:"Addr"`
-		Ports map[int]*Port `json:"Ports"`
+		Addr  net.Addr      `json:"addr"`
+		Ports map[int]*Port `json:"ports"`
 	}
 
 	Port struct {
-		P          int    `json:"Port"`
-		Method     string `json:"Method"`
-		Password   string `json:"Password"`
-		TrafficIn  int64  `json:"TrafficIn"`
-		TrafficOut int64  `json:"TrafficOut"`
-		UserID     string `json:"UserID"`
+		Index      int    `json:"index"`
+		P          int    `json:"port"`
+		Method     string `json:"method"`
+		Password   string `json:"password"`
+		TrafficIn  int64  `json:"in"`
+		TrafficOut int64  `json:"out"`
+		UserID     string `json:"uid"`
 	}
 
 	User struct {
-		UserID     string `json:"UserID"`
-		Token      string `json:"Token"`
-		WorkerIP   string `json:"WorkerIP"`
-		WorkerPort int    `json:"WorkerPort"`
+		UserID     string `json:"uid"`
+		Token      string `json:"token"`
+		WorkerIP   string `json:"ip"`
+		WorkerPort int    `json:"port"`
 	}
 )
 
@@ -128,7 +129,7 @@ func listener() {
 	l := brain.L
 	for {
 		data := make([]byte, 300)
-		_, addr, err := l.ReadFrom(data)
+		n, addr, err := l.ReadFrom(data)
 		if err != nil {
 			e.Logger.Printf("UDP remote listen error: %v", err)
 			continue
@@ -146,6 +147,9 @@ func listener() {
 		case strings.HasPrefix(command, "hello"):
 			clearPorts(worker)
 			e.Logger.Info("received hello")
+		case strings.HasPrefix(command, "report:"):
+			staticPorts(worker, bytes.Trim(data[7:n], "\x00\r\n "))
+			e.Logger.Info("received report")
 		case strings.HasPrefix(command, "response:"):
 			// res = handleRemovePort(bytes.Trim(data[9:], "\x00\r\n "))
 			e.Logger.Info("received hello")
@@ -177,9 +181,16 @@ func clearPorts(worker *Worker) {
 	}
 }
 
-func staticPorts(worker *Worker, data string) {
-
+func staticPorts(worker *Worker, data []byte) {
+	var list = make(map[string]*Port)
+	if err := json.Unmarshal(data, &list); err != nil {
+		e.Logger.Info(list)
+	}
+	m,_ := json.Marshal(list)
+	e.Logger.Info(string(m))
 }
+
+//
 
 func getUser(c echo.Context) error {
 	var quote string
@@ -204,7 +215,7 @@ func adminIndex(c echo.Context) error {
 func addPort(c echo.Context) error {
 	p := c.Param("p")
 	i := strings.Index(p, "@")
-	port,_ := strconv.Atoi(p[:i])
+	port, _ := strconv.Atoi(p[:i])
 	pwd := p[i+1:]
 
 	info := map[string]interface{}{
@@ -218,6 +229,10 @@ func addPort(c echo.Context) error {
 	js, _ := json.Marshal(info)
 	buffer.Write(js)
 
+	// #...test
+	// var send []byte
+	// baseCode := base64.StdEncoding
+	// baseCode.Encode(send, buffer.Bytes())
 	for _, v := range (brain.Workers) {
 		brain.L.WriteTo(buffer.Bytes(), v.Addr)
 	}

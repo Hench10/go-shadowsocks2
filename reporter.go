@@ -52,27 +52,29 @@ func reporter(conn net.PacketConn, manager net.Addr) {
 		case <-timer:
 			data := JsonPort()
 			if len(data) <= 2 {
-				conn.WriteTo(empty, manager)
-				logf(string(empty))
-				continue
+				data = empty
+			}else{
+				buffer.Reset()
+				buffer.Write([]byte("report:"))
+				buffer.Write(data)
+				data = buffer.Bytes()
 			}
-			buffer.Reset()
-			buffer.Write([]byte("report:"))
-			buffer.Write(data)
-			conn.WriteTo(buffer.Bytes(), manager)
-			logf(string(buffer.Bytes()))
+
+			if _,err := conn.WriteTo(data, manager);err != nil{
+				return
+			}
+			logf(string(data))
 		}
 	}
 }
 
 func cmdHandle(conn net.PacketConn) {
 	for {
-		logf("Receive a command")
 		data := make([]byte, 1024)
 		n, manager, err := conn.ReadFrom(data)
 		if err != nil {
 			logf("UDP remote listen error: %v", err)
-			continue
+			return
 		}
 
 		command := string(data[:n])
