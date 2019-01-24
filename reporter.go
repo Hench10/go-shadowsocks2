@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"compress/zlib"
+	"io"
 )
 
 type TransMessage struct {
@@ -43,7 +45,6 @@ func runReporter() {
 }
 
 func reporter(conn net.PacketConn, manager net.Addr) {
-	var empty = []byte("hello")
 	var buffer bytes.Buffer
 
 	timer := time.Tick(10 * time.Second)
@@ -51,39 +52,42 @@ func reporter(conn net.PacketConn, manager net.Addr) {
 		select {
 		case <-timer:
 			data := JsonPort()
-			if len(data) <= 2 {
-				data = empty
-			}else{
-				buffer.Reset()
-				buffer.Write([]byte("report:"))
-				buffer.Write(data)
-				data = buffer.Bytes()
-			}
+			buffer.Reset()
+			buffer.Write([]byte("report:"))
+			buffer.Write(data)
 
-			if _,err := conn.WriteTo(data, manager);err != nil{
+			if err := send(buffer.Bytes(),conn,manager);err != nil{
 				return
 			}
-			logf(string(data))
+			logf(string(buffer.Bytes()))
 		}
 	}
 }
 
 func cmdHandle(conn net.PacketConn) {
 	for {
+		var tmp bytes.Buffer
 		data := make([]byte, 1024)
 		n, manager, err := conn.ReadFrom(data)
 		if err != nil {
 			logf("UDP remote listen error: %v", err)
 			return
 		}
+		tmp.Write(data[:n])
 
-		command := string(data[:n])
+		var rec bytes.Buffer
+		r, _ := zlib.NewReader(&tmp)
+		io.Copy(&rec, r)
+
+		data2 := rec.Bytes()
+		command := string(data)
+
 		var res []byte
 		switch {
 		case strings.HasPrefix(command, "add:"):
-			res = handleAddPort(bytes.Trim(data[4:n], "\x00\r\n "))
+			res = handleAddPort(bytes.Trim(data2[4:], "\x00\r\n "))
 		case strings.HasPrefix(command, "remove:"):
-			res = handleRemovePort(bytes.Trim(data[7:n], "\x00\r\n "))
+			res = handleRemovePort(bytes.Trim(data2[7:], "\x00\r\n "))
 		case strings.HasPrefix(command, "ping"):
 			res = []byte("pong")
 		}
@@ -155,4 +159,14 @@ func response(cmd string, stat bool, msg string, payload string) (res []byte) {
 	buffer.Write(js)
 
 	return buffer.Bytes()
+}
+
+func send(data []byte,conn net.PacketConn,addr net.Addr)(err error){
+	var in bytes.Buffer
+	w := zlib.NewWriter(&in)
+	w.Write(data)
+	w.Close()
+
+	_,err = conn.WriteTo(in.Bytes(), addr)
+	return
 }

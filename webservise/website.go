@@ -30,12 +30,12 @@ type (
 	}
 
 	Worker struct {
+		Index      int    `json:"index"`
 		Addr  net.Addr      `json:"addr"`
 		Ports map[int]*Port `json:"ports"`
 	}
 
 	Port struct {
-		Index      int    `json:"index"`
 		P          int    `json:"port"`
 		Method     string `json:"method"`
 		Password   string `json:"password"`
@@ -98,12 +98,14 @@ func Start(L net.PacketConn, dbf DBConfig, d bool) {
 
 	// Route - admin
 	admin := e.Group("/admin", midAuth)
-	admin.GET("", adminIndex)
-	admin.GET("/", adminIndex)
-	admin.GET("/add/:p", addPort)
-	admin.GET("/rm/:p", removePort)
-	admin.GET("/ping/:p", pingWorker)
-	admin.GET("/pong/:p", pong)
+
+	admin.GET("", func(c echo.Context) error { return c.File("./static/admin.html") })
+	admin.GET("/", func(c echo.Context) error { return c.File("./static/admin.html") })
+	admin.POST("/", adminIndex)
+	admin.POST("/add", addPort)
+	admin.POST("/rm", removePort)
+	admin.POST("/clear", clearPort)
+	admin.POST("/ping", pingWorker)
 
 	// Socks Server
 	go listener()
@@ -128,7 +130,7 @@ func DBLink(dbf DBConfig) (err error) {
 func listener() {
 	l := brain.L
 	for {
-		data := make([]byte, 300)
+		data := make([]byte, 1024)
 		n, addr, err := l.ReadFrom(data)
 		if err != nil {
 			e.Logger.Printf("UDP remote listen error: %v", err)
@@ -144,18 +146,15 @@ func listener() {
 		command := string(data)
 		// var res []byte
 		switch {
-		case strings.HasPrefix(command, "hello"):
-			clearPorts(worker)
-			e.Logger.Info("received hello")
 		case strings.HasPrefix(command, "report:"):
 			staticPorts(worker, bytes.Trim(data[7:n], "\x00\r\n "))
 			e.Logger.Info("received report")
 		case strings.HasPrefix(command, "response:"):
+			reportHandle(worker, bytes.Trim(data[9:n], "\x00\r\n "))
+			e.Logger.Info("received response")
+		case strings.HasPrefix(command, "pong"):
 			// res = handleRemovePort(bytes.Trim(data[9:], "\x00\r\n "))
-			e.Logger.Info("received hello")
-		case strings.HasPrefix(command, "ping:"):
-			// res = handleRemovePort(bytes.Trim(data[9:], "\x00\r\n "))
-			e.Logger.Info("received ping")
+			e.Logger.Info("received pong")
 		}
 	}
 }
@@ -186,11 +185,15 @@ func staticPorts(worker *Worker, data []byte) {
 	if err := json.Unmarshal(data, &list); err != nil {
 		e.Logger.Info(list)
 	}
-	m,_ := json.Marshal(list)
+	m, _ := json.Marshal(list)
 	e.Logger.Info(string(m))
 }
 
-//
+func reportHandle(worker *Worker, data []byte) {
+
+}
+
+// The Flowwer For Web Request
 
 func getUser(c echo.Context) error {
 	var quote string
@@ -209,18 +212,17 @@ func getUser(c echo.Context) error {
 
 func adminIndex(c echo.Context) error {
 	return c.JSON(http.StatusOK, answer(1, "success", brain))
-	// return c.File("./static/admin.html")
 }
 
 func addPort(c echo.Context) error {
-	p := c.Param("p")
-	i := strings.Index(p, "@")
-	port, _ := strconv.Atoi(p[:i])
-	pwd := p[i+1:]
+	// p := c.Param("p")
+	// i := strings.Index(p, "@")
+	// port, _ := strconv.Atoi(p[:i])
+	// pwd := p[i+1:]
 
 	info := map[string]interface{}{
-		"port":     port,
-		"password": pwd,
+		"port":     8388,
+		"password": "123456",
 		"method":   "AES-192-CFB",
 	}
 
@@ -244,10 +246,10 @@ func removePort(c echo.Context) error {
 	return c.JSON(http.StatusOK, answer(1, "success", ""))
 }
 
-func pingWorker(c echo.Context) error {
+func clearPort(c echo.Context) error {
 	return c.JSON(http.StatusOK, answer(1, "success", ""))
 }
 
-func pong(c echo.Context) error {
+func pingWorker(c echo.Context) error {
 	return c.JSON(http.StatusOK, answer(1, "success", ""))
 }

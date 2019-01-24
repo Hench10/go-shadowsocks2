@@ -22,7 +22,8 @@ func tcpRemote(addr string, shadow func(net.Conn) net.Conn, porter *PortInfo) {
 		c, err := l.Accept()
 		if err != nil {
 			logf("failed to accept: %v", err)
-			continue
+			l.Close()
+			return
 		}
 
 		go func() {

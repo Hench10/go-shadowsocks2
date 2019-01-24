@@ -38,7 +38,8 @@ func udpRemote(addr string, shadow func(net.PacketConn) net.PacketConn, porter *
 		n, raddr, err := c.ReadFrom(buf)
 		if err != nil {
 			logf("UDP remote read error: %v", err)
-			continue
+			c.Close()
+			return
 		}
 
 		tgtAddr := socks.SplitAddr(buf[:n])
