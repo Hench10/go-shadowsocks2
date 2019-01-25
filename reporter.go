@@ -56,7 +56,7 @@ func reporter(conn net.PacketConn, manager net.Addr) {
 			buffer.Write([]byte("report:"))
 			buffer.Write(data)
 
-			if err := send(buffer.Bytes(),conn,manager);err != nil{
+			if err := send(buffer.Bytes(), conn, manager); err != nil {
 				return
 			}
 			logf(string(buffer.Bytes()))
@@ -66,35 +66,34 @@ func reporter(conn net.PacketConn, manager net.Addr) {
 
 func cmdHandle(conn net.PacketConn) {
 	for {
-		var tmp bytes.Buffer
-		data := make([]byte, 1024)
-		n, manager, err := conn.ReadFrom(data)
+		var res []byte
+		var buffer bytes.Buffer
+
+		tmp := make([]byte, 1024)
+		n, manager, err := conn.ReadFrom(tmp)
 		if err != nil {
 			logf("UDP remote listen error: %v", err)
 			return
 		}
-		tmp.Write(data[:n])
 
-		var rec bytes.Buffer
-		r, _ := zlib.NewReader(&tmp)
-		io.Copy(&rec, r)
-
-		data2 := rec.Bytes()
+		buffer.Write(tmp[:n])
+		r, _ := zlib.NewReader(&buffer)
+		io.Copy(&buffer, r)
+		data := buffer.Bytes()
 		command := string(data)
 
-		var res []byte
 		switch {
 		case strings.HasPrefix(command, "add:"):
-			res = handleAddPort(bytes.Trim(data2[4:], "\x00\r\n "))
+			res = handleAddPort(bytes.Trim(data[4:], "\x00\r\n "))
 		case strings.HasPrefix(command, "remove:"):
-			res = handleRemovePort(bytes.Trim(data2[7:], "\x00\r\n "))
+			res = handleRemovePort(bytes.Trim(data[7:], "\x00\r\n "))
 		case strings.HasPrefix(command, "ping"):
 			res = []byte("pong")
 		}
 		if len(res) == 0 {
 			continue
 		}
-		_, err = conn.WriteTo(res, manager)
+		err = send(res, conn, manager)
 		if err != nil {
 			logf("Failed to write UDP manage msg, error: ", err.Error())
 			continue
@@ -161,12 +160,12 @@ func response(cmd string, stat bool, msg string, payload string) (res []byte) {
 	return buffer.Bytes()
 }
 
-func send(data []byte,conn net.PacketConn,addr net.Addr)(err error){
+func send(data []byte, conn net.PacketConn, addr net.Addr) (err error) {
 	var in bytes.Buffer
 	w := zlib.NewWriter(&in)
 	w.Write(data)
 	w.Close()
 
-	_,err = conn.WriteTo(in.Bytes(), addr)
+	_, err = conn.WriteTo(in.Bytes(), addr)
 	return
 }

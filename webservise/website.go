@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"encoding/json"
 	"bytes"
+	"compress/zlib"
+	"io"
 )
 
 type (
@@ -130,8 +132,8 @@ func DBLink(dbf DBConfig) (err error) {
 func listener() {
 	l := brain.L
 	for {
-		data := make([]byte, 1024)
-		n, addr, err := l.ReadFrom(data)
+		tmp := make([]byte, 1024)
+		n, addr, err := l.ReadFrom(tmp)
 		if err != nil {
 			e.Logger.Printf("UDP remote listen error: %v", err)
 			continue
@@ -143,8 +145,9 @@ func listener() {
 			brain.Workers[addr.String()] = worker
 		}
 
-		command := string(data)
-		// var res []byte
+		command,data := unzip(tmp,n)
+		e.Logger.Info(command)
+
 		switch {
 		case strings.HasPrefix(command, "report:"):
 			staticPorts(worker, bytes.Trim(data[7:n], "\x00\r\n "))
@@ -236,7 +239,7 @@ func addPort(c echo.Context) error {
 	// baseCode := base64.StdEncoding
 	// baseCode.Encode(send, buffer.Bytes())
 	for _, v := range (brain.Workers) {
-		brain.L.WriteTo(buffer.Bytes(), v.Addr)
+		send(buffer.Bytes(),brain.L,v.Addr)
 	}
 
 	return c.JSON(http.StatusOK, answer(1, "success", ""))
@@ -252,4 +255,24 @@ func clearPort(c echo.Context) error {
 
 func pingWorker(c echo.Context) error {
 	return c.JSON(http.StatusOK, answer(1, "success", ""))
+}
+
+func send(data []byte,conn net.PacketConn,addr net.Addr)(err error){
+	var in bytes.Buffer
+	w := zlib.NewWriter(&in)
+	w.Write(data)
+	w.Close()
+
+	_,err = conn.WriteTo(in.Bytes(), addr)
+	return
+}
+
+func unzip(body []byte,n int)(command string,data []byte){
+	var in,out bytes.Buffer
+	in.Write(body[:n])
+	r, _ := zlib.NewReader(&in)
+	io.Copy(&out, r)
+	data = out.Bytes()
+	command = string(data)
+	return
 }
