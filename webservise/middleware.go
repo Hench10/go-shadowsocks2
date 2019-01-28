@@ -9,6 +9,12 @@ import (
 
 func midAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) (err error) {
+		auth := c.Request().Header.Get("Authorization")
+
+		if auth == "" {
+			return c.JSON(http.StatusUnauthorized, answer(0, "Unauthorized", ""))
+		}
+
 		return next(c)
 	}
 }

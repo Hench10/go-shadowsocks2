@@ -186,10 +186,10 @@ func clearPorts(worker *Worker) {
 func staticPorts(worker *Worker, data []byte) {
 	var list = make(map[string]*Port)
 	if err := json.Unmarshal(data, &list); err != nil {
-		e.Logger.Info(list)
+		e.Logger.Debug(list)
 	}
 	m, _ := json.Marshal(list)
-	e.Logger.Info(string(m))
+	e.Logger.Debug(string(m))
 }
 
 func reportHandle(worker *Worker, data []byte) {
@@ -246,6 +246,7 @@ func addPort(c echo.Context) error {
 }
 
 func removePort(c echo.Context) error {
+
 	return c.JSON(http.StatusOK, answer(1, "success", ""))
 }
 
