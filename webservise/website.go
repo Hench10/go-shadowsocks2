@@ -67,6 +67,7 @@ func Start(L net.PacketConn, dbf DBConfig, d bool) {
 
 	// Echo instance
 	e = echo.New()
+	e.Pre(middleware.HTTPSRedirect())
 
 	// Setting
 	e.Debug = debug
@@ -113,7 +114,7 @@ func Start(L net.PacketConn, dbf DBConfig, d bool) {
 	go listener()
 
 	// Start server
-	e.Logger.Fatal(e.Start(":81"))
+	e.Logger.Fatal(e.StartTLS(":443","./1777568_wiki.hench.top.pem","./1777568_wiki.hench.top.key"))
 }
 
 func DBLink(dbf DBConfig) (err error) {
